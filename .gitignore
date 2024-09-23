@@ -1,0 +1,7 @@
+/target
+**.csv
+**.txt
+parsed
+/new_folder
+.idea
+.DS_Store
