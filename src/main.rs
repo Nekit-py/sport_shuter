@@ -82,29 +82,10 @@ async fn get_ads_category_urls(
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::builder().build()?;
-    // let client = Arc::new(Client::builder().build())?;
     let sales_response = a_html_response(&client, SALES.to_owned()).await?;
     let categories = get_categories(sales_response.html)?;
-    // println!("{categories:#?}");
-    //
-    // let cat = "https://sportingshot.ru/sales/oruzhie/";
-    // let cat_response = a_html_response(&client, cat.to_owned()).await?;
-    // let pages = all_pages(cat_response.html, cat)?;
-    // println!("{pages:#?}");
-
-    // let page = "https://sportingshot.ru/sales/oruzhie/?page=19";
-    // let page_resp = a_html_response(&client, page.to_owned()).await?;
-    // let ads_urls = get_page_ads(page_resp.html)?;
-    // println!("{ads_urls:#?}");
-
-    // let ad_url = "https://sportingshot.ru/sales/oruzhie/1927_ruzhe_izh_43m_gorizontalka,_kalibr_16";
-    // let ad_body = a_html_response(&client, ad_url.to_owned()).await?;
-    // let ad = Ad::from(&client, ad_body).await;
-    // println!("{:#?}", ad);
 
     for category in categories.into_iter() {
-        // let semaphore = Arc::new(Semaphore::new(10)); // Limit to 10 concurrent tasks
-
         let ads_urls = get_ads_category_urls(category.to_owned()).await?;
         let ads_html = get_html_from_urls(ads_urls).await?;
 
@@ -112,12 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for ad in ads_html {
             let client = Client::builder().build()?;
-            // let permit = semaphore.clone().acquire_owned().await?;
             futures.push(async move { Ad::from(&client, ad).await });
-            // futures.push(tokio::spawn(async move {
-            //     let _permit = permit;
-            //     Ad::from(&client, ad).await
-            // }));
         }
 
         let ads = futures::future::join_all(futures).await;
@@ -125,6 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for ad in ads.into_iter() {
             add_to_csv(ad, &format!("{}.csv", parse_category(&category)))?;
         }
+        //На всякий случай
         sleep(Duration::from_secs(5)).await;
     }
 

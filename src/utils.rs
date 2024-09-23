@@ -10,7 +10,6 @@ pub fn add_to_csv(ad: Ad, file_name: &str) -> Result<(), Box<dyn std::error::Err
     let file_path = current_exe.parent().unwrap().join(file_name);
 
     let file = fs::OpenOptions::new()
-        .write(true)
         .append(true)
         .create(true)
         .open(file_path)?;

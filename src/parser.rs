@@ -41,13 +41,15 @@ impl Ad {
         let html = Html::parse_document(&html_r.html);
 
         if let Some(ad_id) = extract_number(&html_r.url) {
-            if let Ok(phone) = get_contact(&client, Contact::Phone, &ad_id).await {
-                if let Some(p) = phone {
-                    ad.seller_phone =
-                        Some(p.chars().filter(|c| c.is_ascii_digit()).collect::<String>());
-                }
+            if let Ok(Some(phone)) = get_contact(client, Contact::Phone, &ad_id).await {
+                ad.seller_phone = Some(
+                    phone
+                        .chars()
+                        .filter(char::is_ascii_digit)
+                        .collect::<String>(),
+                );
             }
-            if let Ok(email) = get_contact(&client, Contact::Email, &ad_id).await {
+            if let Ok(email) = get_contact(client, Contact::Email, &ad_id).await {
                 ad.email = email
             }
         }
@@ -223,10 +225,12 @@ pub fn all_pages(html: String, url: &str) -> Result<Vec<String>, Box<dyn std::er
             }
         }
     }
-    Err(Box::new(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "Не удалось получить список страниц",
-    )))
+    // Err(Box::new(std::io::Error::new(
+    //     std::io::ErrorKind::Other,
+    //     "Не удалось получить список страниц",
+    // )))
+    // Тут бывает, что страница всего одна, она и главная, поэтому ее и возвращаем
+    Ok(vec![url.to_owned()])
 }
 
 pub fn get_page_ads(body: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
