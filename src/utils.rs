@@ -31,8 +31,12 @@ pub fn generate_pages(url: &str, last_page_num: usize) -> Vec<String> {
 pub fn extract_number(url: &str) -> Option<String> {
     let parts: Vec<&str> = url.split('/').collect();
     let suffix = parts[5];
-    if let Some(pos) = suffix.find('_') {
-        return Some(suffix[..pos].to_string());
+    let number: String = suffix
+        .chars()
+        .take_while(|c| c.is_digit(10)) // Берем символы, пока они цифры
+        .collect();
+    if !number.is_empty() {
+        return Some(number);
     }
     None
 }

@@ -38,7 +38,6 @@ pub struct Ad {
 impl Ad {
     pub async fn from(client: &Client, html_r: HtmlResponse) -> Ad {
         let mut ad = Ad::default();
-        let html = Html::parse_document(&html_r.html);
 
         if let Some(ad_id) = extract_number(&html_r.url) {
             if let Ok(Some(phone)) = get_contact(client, Contact::Phone, &ad_id).await {
@@ -55,18 +54,20 @@ impl Ad {
         }
 
         ad.url = Some(html_r.url);
-        ad.get_announce_date(&html);
-        ad.get_city(&html);
-        ad.get_title(&html);
-        ad.get_description(&html);
-        ad.get_price(&html);
-        ad.get_seller(&html);
+        ad.get_announce_date(&html_r.html);
+        ad.get_city(&html_r.html);
+        ad.get_title(&html_r.html);
+        ad.get_description(&html_r.html);
+        ad.get_price(&html_r.html);
+        ad.get_seller(&html_r.html);
         ad
     }
-    pub fn as_record(self) -> [String; 8] {
+
+    pub fn as_record(self) -> [String; 9] {
         [
             self.seller.unwrap_or_default(),
             self.seller_phone.unwrap_or_default(),
+            self.email.unwrap_or_default(),
             self.price.map(|p| p.to_string()).unwrap_or_default(),
             self.city.unwrap_or_default(),
             self.title.unwrap_or_default(),
@@ -74,22 +75,27 @@ impl Ad {
             self.announce_date
                 .map(|d| d.to_string())
                 .unwrap_or_default(),
-            // self.category,
             self.url.unwrap_or_default(),
         ]
     }
 
-    fn get_announce_date(&mut self, html: &Html) {
-        if let Ok(date_selector) = Selector::parse("#body > section > div > article:nth-child(2) > div > div:nth-child(2) > span:nth-child(1)") {
+    fn get_announce_date(&mut self, html: &str) {
+        let html = Html::parse_document(html);
+        if let Ok(date_selector) =
+            Selector::parse("#body > section > div > article > div > div > span")
+        {
             if let Some(date) = html.select(&date_selector).next() {
-                let str_date: String = date .text().collect();
+                let str_date: String = date.text().collect();
                 self.announce_date = parse_date(str_date.trim());
             }
         }
     }
 
-    fn get_city(&mut self, html: &Html) {
-        if let Ok(city_selector) = Selector::parse("#body > section > div > article:nth-child(2) > div > div:nth-child(2) > span:nth-child(2)") {
+    fn get_city(&mut self, html: &str) {
+        let html = Html::parse_document(html);
+        if let Ok(city_selector) =
+            Selector::parse("#body > section > div > article > div > div > span:nth-child(2)")
+        {
             if let Some(city) = html.select(&city_selector).next() {
                 let city: String = city.text().collect();
                 self.city = Some(city.trim().to_string());
@@ -97,8 +103,11 @@ impl Ad {
         }
     }
 
-    fn get_seller(&mut self, html: &Html) {
-        if let Ok(seller_selector) = Selector::parse("#body > section > div > article:nth-child(2) > div > div:nth-child(2) > dl.ads_page_inf.first > dd") {
+    fn get_seller(&mut self, html: &str) {
+        let html = Html::parse_document(html);
+        if let Ok(seller_selector) = Selector::parse(
+            "#body > section > div > article > div > div > dl.ads_page_inf.first > dd",
+        ) {
             if let Some(seller) = html.select(&seller_selector).next() {
                 let seller: String = seller.text().collect();
                 self.seller = Some(seller.trim().to_string());
@@ -106,8 +115,11 @@ impl Ad {
         }
     }
 
-    fn get_price(&mut self, html: &Html) {
-        if let Ok(price_selector) = Selector::parse("#body > section > div > article:nth-child(2) > div > div:nth-child(2) > div.ads_page_pr") {
+    fn get_price(&mut self, html: &str) {
+        let html = Html::parse_document(html);
+        if let Ok(price_selector) =
+            Selector::parse("#body > section > div > article > div > div > div.ads_page_pr")
+        {
             if let Some(price) = html.select(&price_selector).next() {
                 let str_price: String = price
                     .text()
@@ -120,10 +132,11 @@ impl Ad {
         }
     }
 
-    fn get_title(&mut self, html: &Html) {
-        if let Ok(title_selector) = Selector::parse(
-            "#body > section > div > article:nth-child(2) > div > div:nth-child(2) > h1",
-        ) {
+    fn get_title(&mut self, html: &str) {
+        let html = Html::parse_document(html);
+        if let Ok(title_selector) =
+            Selector::parse("#body > section > div > article > div > div > h1")
+        {
             if let Some(title) = html.select(&title_selector).next() {
                 let title: String = title.text().collect();
                 self.title = Some(title.trim().to_string());
@@ -131,13 +144,24 @@ impl Ad {
         }
     }
 
-    fn get_description(&mut self, html: &Html) {
-        if let Ok(description_selector) = Selector::parse("#body > section > div > article:nth-child(2) > div > div:nth-child(2) > div.ads_page_c") {
+    fn get_description(&mut self, html: &str) {
+        let html = Html::parse_document(html);
+        if let Ok(description_selector) =
+            Selector::parse("#body > section > div > article > div > div > div.ads_page_c")
+        {
             if let Some(description) = html.select(&description_selector).next() {
                 let description: String = description.text().collect();
                 self.description = Some(description.trim().to_string());
             }
         }
+    }
+
+    pub fn show_phone(&self) {
+        println!("{:?}", self.seller_phone);
+    }
+
+    pub fn show_email(&self) {
+        println!("{:?}", self.email);
     }
 }
 
@@ -176,7 +200,8 @@ async fn get_contact(
         .body(body_str)
         .send()
         .await?;
-    Ok(Some(res.text().await?))
+    let text_resp = res.text().await?;
+    Ok(Some(text_resp))
 }
 
 pub async fn a_html_response(

@@ -3,6 +3,7 @@ mod utils;
 use parser::{a_html_response, all_pages, get_categories, get_page_ads, Ad, HtmlResponse};
 use rayon::prelude::*;
 use reqwest::Client;
+// use std::sync::{Arc, Mutex};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::time::{sleep, Duration};
@@ -79,8 +80,34 @@ async fn get_ads_category_urls(
     Ok(adds_urls)
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn _test_cat(category: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let ads_urls = get_ads_category_urls(category.to_owned()).await?;
+    let ads_html = get_html_from_urls(ads_urls).await?;
+
+    let mut futures = Vec::new();
+
+    let client = Client::builder().build()?;
+    let semaphore = Arc::new(Semaphore::new(10));
+
+    for ad in ads_html {
+        let client = client.clone();
+        let permit = semaphore.clone().acquire_owned().await?;
+        futures.push(tokio::spawn(async move {
+            let _permit = permit;
+            Ad::from(&client, ad).await
+        }));
+    }
+
+    let ads = futures::future::join_all(futures).await;
+
+    for ad in ads.into_iter().flatten() {
+        add_to_csv(ad, &format!("{}.csv", parse_category(category)))?;
+    }
+
+    Ok(())
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::builder().build()?;
     let sales_response = a_html_response(&client, SALES.to_owned()).await?;
     let categories = get_categories(sales_response.html)?;
@@ -91,19 +118,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut futures = Vec::new();
 
+        let client = Client::builder().build()?;
+        let semaphore = Arc::new(Semaphore::new(10));
+
         for ad in ads_html {
-            let client = Client::builder().build()?;
-            futures.push(async move { Ad::from(&client, ad).await });
+            let client = client.clone();
+            let permit = semaphore.clone().acquire_owned().await?;
+            futures.push(tokio::spawn(async move {
+                let _permit = permit;
+                Ad::from(&client, ad).await
+            }));
         }
 
         let ads = futures::future::join_all(futures).await;
 
-        for ad in ads.into_iter() {
+        for ad in ads.into_iter().flatten() {
             add_to_csv(ad, &format!("{}.csv", parse_category(&category)))?;
         }
-        //На всякий случай
-        sleep(Duration::from_secs(5)).await;
     }
 
+    Ok(())
+}
+
+async fn _test_ad(url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::builder().build()?;
+    let ad_html = a_html_response(&client, url.to_owned()).await?;
+
+    let ad = Ad::from(&client, ad_html).await;
+    println!("{ad:#?}");
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // let client = Client::builder().build()?;
+    // let sales_response = a_html_response(&client, SALES.to_owned()).await?;
+    // let categories = get_categories(sales_response.html)?;
+    // println!("{categories:#?}");
+    // let category = "https://sportingshot.ru/sales/oruzhie/";
+    // _test_cat(category).await?;
+    // _test_ad().await?;
+    run().await?;
+    // let ad_url = "https://sportingshot.ru/sales/oruzhie/1996-prodam_pompovoe_ruzhyo_germanica_h_wragf_(fabarm_sdass_wood)";
+    // _test_ad(ad_url).await?;
     Ok(())
 }
